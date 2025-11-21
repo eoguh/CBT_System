@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  cbt_backend:
+    build: .
+    container_name: cbt_backend
+    command: gunicorn CBT_Backend.wsgi:application --bind 0.0.0.0:8004
+    volumes:
+      - .:/app
+      - ./static:/app/static
+    expose:
+      - "8004"
+    environment:
+      POSTGRES_DB: cbt_db
+      POSTGRES_USER: cbt_user
+      POSTGRES_PASSWORD: "StrongPasswordHere"
+      DB_HOST: cbt_db
+      DB_PORT: 5432
+
+      # Reverse proxy + SSL
+      VIRTUAL_HOST: cbt.buildx.xyz
+      LETSENCRYPT_HOST: cbt.buildx.xyz
+      LETSENCRYPT_EMAIL: e.oguh@yahoo.com
+
+    depends_on:
+      - cbt_db
+    networks:
+      - proxy
+      - default
+
+  cbt_db:
+    image: postgres:14
+    container_name: cbt_db
+    environment:
+      POSTGRES_DB: cbt_db
+      POSTGRES_USER: cbt_user
+      POSTGRES_PASSWORD: "StrongPasswordHere"
+    volumes:
+      - cbt_postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
+
+networks:
+  proxy:
+    external: true
+  default:
+
+volumes:
+  cbt_postgres_data:

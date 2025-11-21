@@ -11,10 +11,11 @@ services:
     expose:
       - "8004"
     environment:
+      ENVIRONMENT: production
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
       POSTGRES_PASSWORD: "StrongPasswordHere"
-      DB_HOST: cbt_db
+      DB_HOST: db
       DB_PORT: 5432
 
       # Reverse proxy + SSL

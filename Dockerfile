@@ -18,6 +18,7 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 RUN pip install gunicorn
+RUN python manage.py collectstatic --noinput
 
 # Copy project files
 COPY . /app/

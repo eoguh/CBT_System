@@ -19,6 +19,8 @@ services:
       VIRTUAL_HOST: cbt.webuildx.xyz,www.cbt.webuildx.xyz
       LETSENCRYPT_HOST: cbt.webuildx.xyz,www.cbt.webuildx.xyz
       LETSENCRYPT_EMAIL: e.oguh@yahoo.com
+      DJANGO_ALLOWED_HOSTS: cbt.webuildx.xyz,www.cbt.webuildx.xyz
+      DJANGO_CSRF_TRUSTED_ORIGINS: https://cbt.webuildx.xyz,https://www.cbt.webuildx.xyz
     depends_on:
       - db
     networks:

@@ -14,10 +14,11 @@ services:
       - "8004"
 
     environment:
+    
       ENVIRONMENT: production
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
-      POSTGRES_PASSWORD: "StrongPasswordHere"
+      POSTGRES_PASSWORD: "mb:GA7!YF67!QZ*"
       DB_HOST: cbt_db
       DB_PORT: 5432
 

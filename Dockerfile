@@ -26,7 +26,7 @@ RUN pip install gunicorn
 RUN python manage.py collectstatic --noinput
 
 # Expose container port
-EXPOSE 8004
+EXPOSE 8000
 
 # Start server
-CMD ["gunicorn", "--bind", "0.0.0.0:8004", "CBT_System.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "CBT_System.wsgi:application"]

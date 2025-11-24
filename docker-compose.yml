@@ -4,14 +4,14 @@ services:
   cbt_backend:
     build: .
     container_name: cbt_backend
-    command: gunicorn CBT_System.wsgi:application --bind 0.0.0.0:8004
+    command: gunicorn CBT_System.wsgi:application --bind 0.0.0.0:8000
 
     volumes:
       - .:/app
       - ./static:/app/static
 
     expose:
-      - "8004"
+      - "8000"
 
     environment:
     

@@ -5,46 +5,39 @@ services:
     build: .
     container_name: cbt_backend
     command: gunicorn CBT_System.wsgi:application --bind 0.0.0.0:8000
-
     volumes:
       - .:/app
       - ./static:/app/static
-
     expose:
       - "8000"
-
     environment:
-    
-      ENVIRONMENT: production
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
       POSTGRES_PASSWORD: "mb:GA7!YF67!QZ*"
-      DB_HOST: cbt_db
+      DB_HOST: db
       DB_PORT: 5432
-
-      VIRTUAL_HOST: cbt.buildx.xyz
-      LETSENCRYPT_HOST: cbt.buildx.xyz
+      VIRTUAL_HOST: cbt.buildx.xyz,www.cbt.buildx.xyz
+      LETSENCRYPT_HOST: cbt.buildx.xyz,www.cbt.buildx.xyz
       LETSENCRYPT_EMAIL: e.oguh@yahoo.com
-
     depends_on:
-      - cbt_db
+      - db
     networks:
       - proxy
       - default
+    restart: always
 
-  cbt_db:
+  db:
     image: postgres:14
     container_name: cbt_db
     environment:
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
-      POSTGRES_PASSWORD: "StrongPasswordHere"
-
+      POSTGRES_PASSWORD: "mb:GA7!YF67!QZ*"
     volumes:
-      - cbt_postgres_data:/var/lib/postgresql/data
-
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - default
+    restart: always
 
 networks:
   proxy:
@@ -52,4 +45,4 @@ networks:
   default:
 
 volumes:
-  cbt_postgres_data:
+  postgres_data:

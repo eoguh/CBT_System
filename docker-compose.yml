@@ -9,19 +9,20 @@ services:
     volumes:
       - .:/app
       - ./static:/app/static
+
     expose:
       - "8004"
+
     environment:
       ENVIRONMENT: production
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
       POSTGRES_PASSWORD: "StrongPasswordHere"
-      DB_HOST: db
+      DB_HOST: cbt_db
       DB_PORT: 5432
 
-      # Reverse proxy + SSL
-      VIRTUAL_HOST: cbt.webuildx.xyz
-      LETSENCRYPT_HOST: cbt.webuildx.xyz
+      VIRTUAL_HOST: cbt.buildx.xyz
+      LETSENCRYPT_HOST: cbt.buildx.xyz
       LETSENCRYPT_EMAIL: e.oguh@yahoo.com
 
     depends_on:
@@ -37,8 +38,10 @@ services:
       POSTGRES_DB: cbt_db
       POSTGRES_USER: cbt_user
       POSTGRES_PASSWORD: "StrongPasswordHere"
+
     volumes:
       - cbt_postgres_data:/var/lib/postgresql/data
+
     networks:
       - default
 

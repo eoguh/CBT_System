@@ -13,18 +13,20 @@ RUN apt-get update \
     && apt-get install -y gcc libpq-dev musl-dev netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy project files
+COPY . /app/
+
 # Install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 RUN pip install gunicorn
-RUN python manage.py collectstatic --noinput
 
-# Copy project files
-COPY . /app/
+# Collect static files
+RUN python manage.py collectstatic --noinput
 
 # Expose container port
 EXPOSE 8004
 
 # Start server
-CMD ["gunicorn", "--bind", "0.0.0.0:8004", "CBT_Backend.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8004", "CBT_System.wsgi:application"]

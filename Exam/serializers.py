@@ -246,3 +246,98 @@ class ExamSubmissionResponseSerializer(serializers.Serializer):
     total_score = serializers.DecimalField(max_digits=8, decimal_places=2)
     graded_questions = serializers.IntegerField()
     pending_grading = serializers.IntegerField()
+
+
+
+class OptionCreateSerializer(serializers.ModelSerializer):
+    """Writable serializer for creating options"""
+    image_option = serializers.ImageField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Option
+        fields = ("text_option", "image_option", "is_correct")
+
+
+class QuestionCreateSerializer(serializers.ModelSerializer):
+    """Writable serializer for creating questions with options"""
+    options = OptionCreateSerializer(many=True, required=False)
+    image_question = serializers.ImageField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Question
+        fields = ("question_type", "text_question", "image_question", "maximum_mark", "options")
+    
+    def validate_options(self, value):
+        """Validate options for objective questions"""
+        question_type = self.initial_data.get('question_type')
+        
+        if question_type == Question.OBJECTIVE:
+            if not value:
+                raise serializers.ValidationError("Objective questions must have at least 2 options")
+            if len(value) < 2:
+                raise serializers.ValidationError("Objective questions must have at least 2 options")
+            
+            # Check that exactly one option is marked as correct
+            correct_count = sum(1 for opt in value if opt.get('is_correct', False))
+            if correct_count == 0:
+                raise serializers.ValidationError("At least one option must be marked as correct")
+            if correct_count > 1:
+                raise serializers.ValidationError("Only one option can be marked as correct")
+        
+        return value
+
+
+class SectionBulkCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating a complete section with questions and options"""
+    questions = QuestionCreateSerializer(many=True, required=False)
+    
+    class Meta:
+        model = ExamSection
+        fields = ("exam", "name", "section_type", "time_lapse_seconds", "order", "questions")
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        section_type = data.get('section_type')
+        questions = data.get('questions', [])
+        
+        # Validate that all questions match the section type
+        for idx, question in enumerate(questions):
+            if question.get('question_type') != section_type:
+                raise serializers.ValidationError({
+                    'questions': f"Question at index {idx} has type '{question.get('question_type')}' "
+                                f"but section type is '{section_type}'. They must match."
+                })
+        
+        return data
+    
+    def create(self, validated_data):
+        questions_data = validated_data.pop('questions', [])
+        
+        # Get the user from context
+        user = self.context['request'].user
+        
+        # Create the section
+        section = ExamSection.objects.create(**validated_data)
+        
+        # Create questions and their options
+        for question_data in questions_data:
+            options_data = question_data.pop('options', [])
+            
+            # Create question
+            question = Question.objects.create(
+                created_by=user,
+                **question_data
+            )
+            
+            # Create options for the question
+            for option_data in options_data:
+                Option.objects.create(
+                    question=question,
+                    **option_data
+                )
+            
+            # Add question to section
+            section.questions.add(question)
+        
+        return section
+    

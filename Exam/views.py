@@ -32,7 +32,8 @@ from .serializers import (
     ExamAttemptSerializer,
     StudentAnswerSerializer,
     ExamSubmissionSerializer,
-    ExamSubmissionResponseSerializer
+    ExamSubmissionResponseSerializer,
+    SectionBulkCreateSerializer
 )
 
 
@@ -185,6 +186,109 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
             "detail": "Questions updated successfully",
             "section": serializer.data
         })
+    
+    @extend_schema(
+        summary="Create section with questions and options",
+        description="Create a complete exam section with all questions and options in a single request",
+        request=SectionBulkCreateSerializer,
+        responses={
+            201: ExamSectionSerializer,
+            400: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Complete Section Creation',
+                value={
+                    "exam": 2,
+                    "name": "Section A: Programming Fundamentals",
+                    "section_type": "OBJECTIVE",
+                    "time_lapse_seconds": 3600,
+                    "order": 1,
+                    "questions": [
+                        {
+                            "question_type": "OBJECTIVE",
+                            "text_question": "What is Python?",
+                            "maximum_mark": "2.00",
+                            "options": [
+                                {
+                                    "text_option": "A programming language",
+                                    "is_correct": True
+                                },
+                                {
+                                    "text_option": "A snake",
+                                    "is_correct": False
+                                },
+                                {
+                                    "text_option": "A database",
+                                    "is_correct": False
+                                }
+                            ]
+                        },
+                        {
+                            "question_type": "OBJECTIVE",
+                            "text_question": "What does OOP stand for?",
+                            "maximum_mark": "1.00",
+                            "options": [
+                                {
+                                    "text_option": "Object-Oriented Programming",
+                                    "is_correct": True
+                                },
+                                {
+                                    "text_option": "Out Of Place",
+                                    "is_correct": False
+                                }
+                            ]
+                        }
+                    ]
+                },
+                request_only=True,
+            ),
+        ]
+    )
+    @action(detail=False, methods=["post"], url_path="bulk-create")
+    def bulk_create(self, request):
+        """
+        Create a complete section with questions and options in one request
+        """
+        serializer = SectionBulkCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        
+        section = serializer.save()
+        
+        # Return the complete section with all nested data
+        response_serializer = ExamSectionSerializer(section, context={'request': request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    
+    @extend_schema(
+        summary="Update section with questions and options",
+        description="Replace all questions in a section with new ones",
+        request=SectionBulkCreateSerializer,
+        responses={200: ExamSectionSerializer}
+    )
+    @action(detail=True, methods=["put"], url_path="bulk-update")
+    def bulk_update(self, request, pk=None):
+        """
+        Replace all questions in a section
+        """
+        section = self.get_object()
+        
+        # Clear existing questions (this will also delete orphaned questions if needed)
+        section.questions.clear()
+        
+        # Use the bulk create serializer
+        serializer = SectionBulkCreateSerializer(
+            section, 
+            data=request.data, 
+            context={'request': request},
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        
+        updated_section = serializer.save()
+        
+        response_serializer = ExamSectionSerializer(updated_section, context={'request': request})
+        return Response(response_serializer.data)
+
 
 
 
@@ -613,3 +717,4 @@ class ExaminerViewSet(viewsets.GenericViewSet):
             "attempt_total": float(sa.attempt.total_score),
             "attempt_status": sa.attempt.status
         })
+    

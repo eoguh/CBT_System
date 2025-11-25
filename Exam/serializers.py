@@ -248,7 +248,6 @@ class ExamSubmissionResponseSerializer(serializers.Serializer):
     pending_grading = serializers.IntegerField()
 
 
-
 class OptionCreateSerializer(serializers.ModelSerializer):
     """Writable serializer for creating options"""
     image_option = serializers.ImageField(required=False, allow_null=True)
@@ -267,24 +266,35 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
         model = Question
         fields = ("question_type", "text_question", "image_question", "maximum_mark", "options")
     
-    def validate_options(self, value):
-        """Validate options for objective questions"""
-        question_type = self.initial_data.get('question_type')
+    def validate(self, data):
+        """
+        Validate the entire question object including options
+        """
+        question_type = data.get('question_type')
+        options = data.get('options', [])
         
         if question_type == Question.OBJECTIVE:
-            if not value:
-                raise serializers.ValidationError("Objective questions must have at least 2 options")
-            if len(value) < 2:
-                raise serializers.ValidationError("Objective questions must have at least 2 options")
+            if not options:
+                raise serializers.ValidationError({
+                    "options": "Objective questions must have at least 2 options"
+                })
+            if len(options) < 2:
+                raise serializers.ValidationError({
+                    "options": "Objective questions must have at least 2 options"
+                })
             
             # Check that exactly one option is marked as correct
-            correct_count = sum(1 for opt in value if opt.get('is_correct', False))
+            correct_count = sum(1 for opt in options if opt.get('is_correct', False))
             if correct_count == 0:
-                raise serializers.ValidationError("At least one option must be marked as correct")
+                raise serializers.ValidationError({
+                    "options": "At least one option must be marked as correct"
+                })
             if correct_count > 1:
-                raise serializers.ValidationError("Only one option can be marked as correct")
+                raise serializers.ValidationError({
+                    "options": "Only one option can be marked as correct"
+                })
         
-        return value
+        return data
 
 
 class SectionBulkCreateSerializer(serializers.ModelSerializer):
@@ -340,47 +350,8 @@ class SectionBulkCreateSerializer(serializers.ModelSerializer):
             section.questions.add(question)
         
         return section
-    
-    def update(self, instance, validated_data):
-        """Update section and replace all questions"""
-        questions_data = validated_data.pop('questions', [])
-        user = self.context['request'].user
-        
-        # Update section fields
-        instance.name = validated_data.get('name', instance.name)
-        instance.section_type = validated_data.get('section_type', instance.section_type)
-        instance.time_lapse_seconds = validated_data.get('time_lapse_seconds', instance.time_lapse_seconds)
-        instance.order = validated_data.get('order', instance.order)
-        instance.save()
-        
-        # Clear existing questions (many-to-many relationship)
-        # Note: This doesn't delete the Question objects, just removes the relationship
-        instance.questions.clear()
-        
-        # Create new questions and their options
-        for question_data in questions_data:
-            options_data = question_data.pop('options', [])
-            
-            # Create question
-            question = Question.objects.create(
-                created_by=user,
-                **question_data
-            )
-            
-            # Create options for the question
-            for option_data in options_data:
-                Option.objects.create(
-                    question=question,
-                    **option_data
-                )
-            
-            # Add question to section
-            instance.questions.add(question)
-        
-        return instance
 
 
-# Add a separate serializer for updates that doesn't require 'exam' field
 class SectionBulkUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating a section with new questions and options"""
     questions = QuestionCreateSerializer(many=True, required=False)
@@ -388,7 +359,6 @@ class SectionBulkUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamSection
         fields = ("name", "section_type", "time_lapse_seconds", "order", "questions")
-        # Note: 'exam' field is NOT included since we're updating existing section
     
     def validate(self, data):
         """Cross-field validation"""
@@ -441,4 +411,3 @@ class SectionBulkUpdateSerializer(serializers.ModelSerializer):
             instance.questions.add(question)
         
         return instance
-    

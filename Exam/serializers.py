@@ -341,3 +341,104 @@ class SectionBulkCreateSerializer(serializers.ModelSerializer):
         
         return section
     
+    def update(self, instance, validated_data):
+        """Update section and replace all questions"""
+        questions_data = validated_data.pop('questions', [])
+        user = self.context['request'].user
+        
+        # Update section fields
+        instance.name = validated_data.get('name', instance.name)
+        instance.section_type = validated_data.get('section_type', instance.section_type)
+        instance.time_lapse_seconds = validated_data.get('time_lapse_seconds', instance.time_lapse_seconds)
+        instance.order = validated_data.get('order', instance.order)
+        instance.save()
+        
+        # Clear existing questions (many-to-many relationship)
+        # Note: This doesn't delete the Question objects, just removes the relationship
+        instance.questions.clear()
+        
+        # Create new questions and their options
+        for question_data in questions_data:
+            options_data = question_data.pop('options', [])
+            
+            # Create question
+            question = Question.objects.create(
+                created_by=user,
+                **question_data
+            )
+            
+            # Create options for the question
+            for option_data in options_data:
+                Option.objects.create(
+                    question=question,
+                    **option_data
+                )
+            
+            # Add question to section
+            instance.questions.add(question)
+        
+        return instance
+
+
+# Add a separate serializer for updates that doesn't require 'exam' field
+class SectionBulkUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating a section with new questions and options"""
+    questions = QuestionCreateSerializer(many=True, required=False)
+    
+    class Meta:
+        model = ExamSection
+        fields = ("name", "section_type", "time_lapse_seconds", "order", "questions")
+        # Note: 'exam' field is NOT included since we're updating existing section
+    
+    def validate(self, data):
+        """Cross-field validation"""
+        section_type = data.get('section_type')
+        questions = data.get('questions', [])
+        
+        # Validate that all questions match the section type
+        for idx, question in enumerate(questions):
+            if question.get('question_type') != section_type:
+                raise serializers.ValidationError({
+                    'questions': f"Question at index {idx} has type '{question.get('question_type')}' "
+                                f"but section type is '{section_type}'. They must match."
+                })
+        
+        return data
+    
+    def update(self, instance, validated_data):
+        """Update section and replace all questions"""
+        questions_data = validated_data.pop('questions', [])
+        user = self.context['request'].user
+        
+        # Update section fields
+        instance.name = validated_data.get('name', instance.name)
+        instance.section_type = validated_data.get('section_type', instance.section_type)
+        instance.time_lapse_seconds = validated_data.get('time_lapse_seconds', instance.time_lapse_seconds)
+        instance.order = validated_data.get('order', instance.order)
+        instance.save()
+        
+        # Clear existing questions
+        instance.questions.clear()
+        
+        # Create new questions and their options
+        for question_data in questions_data:
+            options_data = question_data.pop('options', [])
+            
+            # Create question
+            question = Question.objects.create(
+                created_by=user,
+                **question_data
+            )
+            
+            # Create options for the question
+            for option_data in options_data:
+                Option.objects.create(
+                    question=question,
+                    **option_data
+                )
+            
+            # Add question to section
+            instance.questions.add(question)
+        
+        return instance
+    

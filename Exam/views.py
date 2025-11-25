@@ -33,7 +33,8 @@ from .serializers import (
     StudentAnswerSerializer,
     ExamSubmissionSerializer,
     ExamSubmissionResponseSerializer,
-    SectionBulkCreateSerializer
+    SectionBulkCreateSerializer,
+    SectionBulkUpdateSerializer
 )
 
 
@@ -104,7 +105,7 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
     queryset = ExamSection.objects.all().prefetch_related("questions")
     serializer_class = ExamSectionSerializer
     permission_classes = [permissions.IsAuthenticated, IsExamManager]
-    parser_classes = (JSONParser,)
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     @action(detail=True, methods=["post"], url_path="add-questions")
     def add_questions(self, request, pk=None):
@@ -187,9 +188,23 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
             "section": serializer.data
         })
     
+    def get_serializer_class(self):
+        """
+        Return different serializers for different actions
+        """
+        if self.action == 'bulk_create':
+            return SectionBulkCreateSerializer
+        elif self.action == 'bulk_update':
+            return SectionBulkCreateSerializer
+        return ExamSectionSerializer
+
+
     @extend_schema(
-        summary="Create section with questions and options",
-        description="Create a complete exam section with all questions and options in a single request",
+        summary="Create complete section with questions and options",
+        description="""
+        Create a complete exam section with all its questions and options in a single request.
+        All questions and options will be created fresh with new IDs.
+        """,
         request=SectionBulkCreateSerializer,
         responses={
             201: ExamSectionSerializer,
@@ -197,10 +212,10 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Complete Section Creation',
+                'Create Section Example',
                 value={
                     "exam": 2,
-                    "name": "Section A: Programming Fundamentals",
+                    "name": "Section A: Programming",
                     "section_type": "OBJECTIVE",
                     "time_lapse_seconds": 3600,
                     "order": 1,
@@ -210,33 +225,8 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
                             "text_question": "What is Python?",
                             "maximum_mark": "2.00",
                             "options": [
-                                {
-                                    "text_option": "A programming language",
-                                    "is_correct": True
-                                },
-                                {
-                                    "text_option": "A snake",
-                                    "is_correct": False
-                                },
-                                {
-                                    "text_option": "A database",
-                                    "is_correct": False
-                                }
-                            ]
-                        },
-                        {
-                            "question_type": "OBJECTIVE",
-                            "text_question": "What does OOP stand for?",
-                            "maximum_mark": "1.00",
-                            "options": [
-                                {
-                                    "text_option": "Object-Oriented Programming",
-                                    "is_correct": True
-                                },
-                                {
-                                    "text_option": "Out Of Place",
-                                    "is_correct": False
-                                }
+                                {"text_option": "A programming language", "is_correct": True},
+                                {"text_option": "A snake", "is_correct": False}
                             ]
                         }
                     ]
@@ -248,47 +238,87 @@ class ExamSectionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="bulk-create")
     def bulk_create(self, request):
         """
-        Create a complete section with questions and options in one request
+        Create a complete section with questions and options in one request.
+        URL: POST /api/cbt/sections/bulk-create/
         """
         serializer = SectionBulkCreateSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         
         section = serializer.save()
         
-        # Return the complete section with all nested data
         response_serializer = ExamSectionSerializer(section, context={'request': request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
     
     @extend_schema(
-        summary="Update section with questions and options",
-        description="Replace all questions in a section with new ones",
-        request=SectionBulkCreateSerializer,
-        responses={200: ExamSectionSerializer}
+        summary="Replace all questions in a section",
+        description="""
+        Replace all existing questions in a section with new ones.
+        
+        **Important Notes:**
+        - Existing questions will be unlinked from the section (but not deleted from database)
+        - New questions will be created with new IDs
+        - You don't need to provide the 'exam' field (section already belongs to an exam)
+        - You can update section metadata (name, time_lapse_seconds, etc.) in the same request
+        """,
+        request=SectionBulkUpdateSerializer,
+        responses={
+            200: ExamSectionSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        examples=[
+            OpenApiExample(
+                'Update Section Example',
+                value={
+                    "name": "Section A: Advanced Programming",
+                    "section_type": "OBJECTIVE",
+                    "time_lapse_seconds": 5400,
+                    "order": 1,
+                    "questions": [
+                        {
+                            "question_type": "OBJECTIVE",
+                            "text_question": "What is Django?",
+                            "maximum_mark": "3.00",
+                            "options": [
+                                {"text_option": "A web framework", "is_correct": True},
+                                {"text_option": "A database", "is_correct": False},
+                                {"text_option": "An IDE", "is_correct": False}
+                            ]
+                        },
+                        {
+                            "question_type": "OBJECTIVE",
+                            "text_question": "What is REST?",
+                            "maximum_mark": "2.00",
+                            "options": [
+                                {"text_option": "Representational State Transfer", "is_correct": True},
+                                {"text_option": "Remote Execution Service Tool", "is_correct": False}
+                            ]
+                        }
+                    ]
+                },
+                request_only=True,
+            ),
+        ]
     )
     @action(detail=True, methods=["put"], url_path="bulk-update")
     def bulk_update(self, request, pk=None):
         """
-        Replace all questions in a section
+        Replace all questions in an existing section.
+        URL: PUT /api/cbt/sections/{section_id}/bulk-update/
         """
         section = self.get_object()
         
-        # Clear existing questions (this will also delete orphaned questions if needed)
-        section.questions.clear()
-        
-        # Use the bulk create serializer
-        serializer = SectionBulkCreateSerializer(
-            section, 
-            data=request.data, 
-            context={'request': request},
-            partial=True
+        serializer = SectionBulkUpdateSerializer(
+            section,
+            data=request.data,
+            context={'request': request}
         )
         serializer.is_valid(raise_exception=True)
         
         updated_section = serializer.save()
         
         response_serializer = ExamSectionSerializer(updated_section, context={'request': request})
-        return Response(response_serializer.data)
-
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 
